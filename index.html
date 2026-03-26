@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Leekha Scoreboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="ambient ambient-one" aria-hidden="true"></div>
+      <div class="ambient ambient-two" aria-hidden="true"></div>
+
+      <header class="hero panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Leekha score studio</p>
+          <h1>Track every hand, keep the score honest.</h1>
+          <p class="hero-text">
+            Two teams, four players, one losing line. In Leekha, if any single
+            player reaches <strong>101</strong>, that player&apos;s team loses.
+          </p>
+        </div>
+
+        <div class="hero-rules">
+          <span class="rule-chip">13 ♥ = 13</span>
+          <span class="rule-chip">10♦ = 10</span>
+          <span class="rule-chip">Q♠ = 13</span>
+          <span class="rule-chip">Round total = 36</span>
+        </div>
+      </header>
+
+      <main class="dashboard panel">
+        <section class="workspace-section panel-scoreboard">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Live board</p>
+              <h2>Match score</h2>
+            </div>
+            <span class="pill">Any player at 101 loses</span>
+          </div>
+
+          <div id="scoreboard-grid" class="scoreboard-grid"></div>
+          <div id="status-banner" class="status-banner" aria-live="polite"></div>
+
+          <div class="toolbar">
+            <button id="undo-button" class="ghost-button" type="button">
+              Undo last round
+            </button>
+            <button id="reset-button" class="ghost-button" type="button">
+              Start new match
+            </button>
+          </div>
+        </section>
+
+        <section class="workspace-section panel-round">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Round builder</p>
+              <h2>Enter one round</h2>
+            </div>
+            <span id="round-total-value" class="pill">36 / 36 points</span>
+          </div>
+
+          <form id="round-form" class="round-form">
+            <p class="round-helper-copy">
+              Enter the exact points each player took this hand. The four values
+              must add up to <strong>36</strong>.
+            </p>
+
+            <div class="round-entry-grid">
+              <article class="preview-card round-team-card" data-tone="moss">
+                <p id="round-team-0-name" class="preview-name">Team A</p>
+
+                <div class="round-player-list">
+                  <label class="round-player-input" for="round-player-0">
+                    <span id="round-player-0-label" class="round-player-label">
+                      Player 1
+                    </span>
+                    <input
+                      id="round-player-0"
+                      class="round-points-input"
+                      type="number"
+                      min="0"
+                      max="36"
+                      step="1"
+                      inputmode="numeric"
+                      value="0"
+                    />
+                  </label>
+
+                  <label class="round-player-input" for="round-player-1">
+                    <span id="round-player-1-label" class="round-player-label">
+                      Player 2
+                    </span>
+                    <input
+                      id="round-player-1"
+                      class="round-points-input"
+                      type="number"
+                      min="0"
+                      max="36"
+                      step="1"
+                      inputmode="numeric"
+                      value="0"
+                    />
+                  </label>
+                </div>
+
+                <p class="preview-breakdown">
+                  Team round total:
+                  <strong id="round-team-0-total">0 pts</strong>
+                </p>
+              </article>
+
+              <article class="preview-card round-team-card" data-tone="accent">
+                <p id="round-team-1-name" class="preview-name">Team B</p>
+
+                <div class="round-player-list">
+                  <label class="round-player-input" for="round-player-2">
+                    <span id="round-player-2-label" class="round-player-label">
+                      Player 3
+                    </span>
+                    <input
+                      id="round-player-2"
+                      class="round-points-input"
+                      type="number"
+                      min="0"
+                      max="36"
+                      step="1"
+                      inputmode="numeric"
+                      value="0"
+                    />
+                  </label>
+
+                  <label class="round-player-input" for="round-player-3">
+                    <span id="round-player-3-label" class="round-player-label">
+                      Player 4
+                    </span>
+                    <input
+                      id="round-player-3"
+                      class="round-points-input"
+                      type="number"
+                      min="0"
+                      max="36"
+                      step="1"
+                      inputmode="numeric"
+                      value="0"
+                    />
+                  </label>
+                </div>
+
+                <p class="preview-breakdown">
+                  Team round total:
+                  <strong id="round-team-1-total">0 pts</strong>
+                </p>
+              </article>
+            </div>
+
+            <p id="round-validation" class="round-validation" hidden></p>
+
+            <button id="add-round-button" class="primary-button" type="submit">
+              Add round
+            </button>
+          </form>
+        </section>
+
+        <section class="workspace-section panel-setup">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Team setup</p>
+              <h2>Players</h2>
+            </div>
+          </div>
+
+          <div class="setup-grid">
+            <article class="team-setup-card">
+              <label class="field-label" for="team-0-name">Team 1 name</label>
+              <input
+                id="team-0-name"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+
+              <label class="field-label" for="team-0-player-0">Player 1</label>
+              <input
+                id="team-0-player-0"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+
+              <label class="field-label" for="team-0-player-1">Player 2</label>
+              <input
+                id="team-0-player-1"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+            </article>
+
+            <article class="team-setup-card">
+              <label class="field-label" for="team-1-name">Team 2 name</label>
+              <input
+                id="team-1-name"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+
+              <label class="field-label" for="team-1-player-0">Player 3</label>
+              <input
+                id="team-1-player-0"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+
+              <label class="field-label" for="team-1-player-1">Player 4</label>
+              <input
+                id="team-1-player-1"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+              />
+            </article>
+          </div>
+        </section>
+
+        <section class="workspace-section panel-history">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Score log</p>
+              <h2>Round history</h2>
+            </div>
+            <span id="round-count" class="pill">0 rounds</span>
+          </div>
+
+          <div id="history-empty" class="empty-state">
+            No rounds yet. Build the first hand above.
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
