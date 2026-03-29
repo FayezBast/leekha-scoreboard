@@ -32,10 +32,9 @@ python3 -m http.server 8000
 
 Then visit `http://localhost:8000`.
 
-## Deploy with Wrangler
+## Deploy on Netlify
 
-This repo now includes a minimal [`wrangler.toml`](/Users/fayezbast/Documents/wara2/wrangler.toml) for an assets-only Worker. The root directory is used as the asset directory, and [`.assetsignore`](/Users/fayezbast/Documents/wara2/.assetsignore) keeps non-site files out of the upload. From the project root, deploy with:
+This is a static site, so in Netlify you can publish the project root directly.
 
-```bash
-npx wrangler deploy
-```
+- Build command: *(leave empty)*
+- Publish directory: `.`

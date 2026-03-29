@@ -4,6 +4,7 @@ const STORAGE_KEY = "leekha-scoreboard-v1";
 const TEAM_COUNT = 2;
 const PLAYERS_PER_TEAM = 2;
 const PLAYER_COUNT = TEAM_COUNT * PLAYERS_PER_TEAM;
+const HEARTS_POOL_POINTS = 13;
 
 const TEAM_PLAYER_INDEXES = Array.from({ length: TEAM_COUNT }, (_, teamIndex) =>
   Array.from(
@@ -14,14 +15,17 @@ const TEAM_PLAYER_INDEXES = Array.from({ length: TEAM_COUNT }, (_, teamIndex) =>
 
 function createDefaultState() {
   return {
-    teams: [
-      { name: "Team A", players: ["Player 1", "Player 2"] },
-      { name: "Team B", players: ["Player 3", "Player 4"] },
-    ],
+    players: ["Player 1", "Player 2", "Player 3", "Player 4"],
     rounds: [],
-    draft: {
-      playerScores: Array(PLAYER_COUNT).fill(0),
-    },
+    draft: createDefaultDraft(),
+  };
+}
+
+function createDefaultDraft() {
+  return {
+    hearts: Array(PLAYER_COUNT).fill(0),
+    tenDiamondOwner: null,
+    queenSpadeOwner: null,
   };
 }
 
@@ -48,6 +52,54 @@ function normalizePlayerScores(rawScores, fallbackScores = []) {
   );
 }
 
+function normalizeHearts(rawHearts, fallbackHearts = []) {
+  const source = Array.isArray(rawHearts) ? rawHearts : [];
+
+  return Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
+    clampNumber(
+      source[playerIndex],
+      0,
+      HEARTS_POOL_POINTS,
+      fallbackHearts[playerIndex] ?? 0,
+    ),
+  );
+}
+
+function normalizeOwner(value) {
+  const index = Number(value);
+
+  if (!Number.isInteger(index)) {
+    return null;
+  }
+
+  return index >= 0 && index < PLAYER_COUNT ? index : null;
+}
+
+function getDraftPlayerScores(draft) {
+  if (Array.isArray(draft)) {
+    return normalizePlayerScores(draft);
+  }
+
+  if (Array.isArray(draft?.playerScores)) {
+    return normalizePlayerScores(draft.playerScores);
+  }
+
+  const hearts = normalizeHearts(draft?.hearts);
+  const scores = [...hearts];
+  const tenDiamondOwner = normalizeOwner(draft?.tenDiamondOwner);
+  const queenSpadeOwner = normalizeOwner(draft?.queenSpadeOwner);
+
+  if (tenDiamondOwner !== null) {
+    scores[tenDiamondOwner] += 10;
+  }
+
+  if (queenSpadeOwner !== null) {
+    scores[queenSpadeOwner] += 13;
+  }
+
+  return scores;
+}
+
 function getTeamScores(playerScores) {
   return TEAM_PLAYER_INDEXES.map((playerIndexes) =>
     playerIndexes.reduce(
@@ -58,7 +110,7 @@ function getTeamScores(playerScores) {
 }
 
 function computeRound(draft) {
-  const playerScores = normalizePlayerScores(draft?.playerScores);
+  const playerScores = getDraftPlayerScores(draft);
   const teamScores = getTeamScores(playerScores);
 
   return {
@@ -85,36 +137,13 @@ function getPlayerTotals(rounds) {
   );
 }
 
-function getTeamLabel(team, fallback) {
-  const explicitName = String(team?.name ?? "").trim();
-
-  if (explicitName) {
-    return explicitName;
-  }
-
-  const players = Array.isArray(team?.players)
-    ? team.players.map((player) => String(player ?? "").trim()).filter(Boolean)
-    : [];
-
-  if (players.length) {
-    return players.join(" + ");
-  }
-
-  return fallback;
+function getTeamLabel(teamIndex) {
+  return `Team ${teamIndex + 1}`;
 }
 
-function getPlayerName(team, playerIndex, fallback) {
-  const rawPlayers = Array.isArray(team?.players) ? team.players : [];
-  const explicitName = String(rawPlayers[playerIndex] ?? "").trim();
-  return explicitName || fallback;
-}
-
-function getPlayerLine(team) {
-  const players = Array.isArray(team?.players)
-    ? team.players.map((player) => String(player ?? "").trim()).filter(Boolean)
-    : [];
-
-  return players.length ? players.join(" / ") : "Add two player names";
+function displayName(name, playerIndex) {
+  const cleaned = String(name ?? "").trim();
+  return cleaned || `Player ${playerIndex + 1}`;
 }
 
 function joinWithAnd(parts) {
@@ -126,32 +155,27 @@ function joinWithAnd(parts) {
     return `${parts[0]} and ${parts[1]}`;
   }
 
-  return `${parts.slice(0, -1).join(", ")}, and ${
-    parts[parts.length - 1]
-  }`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
 }
 
-function getPlayerEntries(teams) {
-  return TEAM_PLAYER_INDEXES.flatMap((playerIndexes, teamIndex) =>
-    playerIndexes.map((absoluteIndex, playerIndex) => ({
+function getPlayerEntries(players) {
+  return Array.from({ length: PLAYER_COUNT }, (_, absoluteIndex) => {
+    const teamIndex = absoluteIndex < PLAYERS_PER_TEAM ? 0 : 1;
+
+    return {
       absoluteIndex,
       teamIndex,
-      playerIndex,
-      teamLabel: getTeamLabel(teams[teamIndex], `Team ${teamIndex + 1}`),
-      name: getPlayerName(
-        teams[teamIndex],
-        playerIndex,
-        `Player ${absoluteIndex + 1}`,
-      ),
-    })),
-  );
+      name: displayName(players[absoluteIndex], absoluteIndex),
+      teamLabel: getTeamLabel(teamIndex),
+    };
+  });
 }
 
-function getMatchStatus(playerTotals, teams) {
-  const playerEntries = getPlayerEntries(teams);
+function getMatchStatus(playerTotals, players) {
+  const entries = getPlayerEntries(players);
   const crossedByTeam = Array.from({ length: TEAM_COUNT }, () => []);
 
-  playerEntries.forEach((entry) => {
+  entries.forEach((entry) => {
     const score = playerTotals[entry.absoluteIndex];
 
     if (score >= LOSS_THRESHOLD) {
@@ -159,77 +183,56 @@ function getMatchStatus(playerTotals, teams) {
     }
   });
 
-  const crossedTeams = crossedByTeam.map((players) => players.length > 0);
+  const crossedTeams = crossedByTeam.map((teamPlayers) => teamPlayers.length > 0);
 
   if (!crossedTeams[0] && !crossedTeams[1]) {
-    const playerDanger = playerEntries.map((entry) => ({
+    const dangerList = entries.map((entry) => ({
       ...entry,
       score: playerTotals[entry.absoluteIndex],
       distance: LOSS_THRESHOLD - playerTotals[entry.absoluteIndex],
     }));
-    const smallestDistance = Math.min(
-      ...playerDanger.map((player) => player.distance),
+
+    const nearestDistance = Math.min(...dangerList.map((entry) => entry.distance));
+    const nearestPlayers = dangerList.filter(
+      (entry) => entry.distance === nearestDistance,
     );
-    const closestPlayers = playerDanger.filter(
-      (player) => player.distance === smallestDistance,
-    );
-    const names = joinWithAnd(
-      closestPlayers.map((player) => `${player.name} (${player.teamLabel})`),
-    );
+    const nearestNames = joinWithAnd(nearestPlayers.map((entry) => entry.name));
 
     return {
-      type: smallestDistance <= 15 ? "live-danger" : "live",
-      dangerTeamIndex: closestPlayers[0].teamIndex,
-      dangerPlayerIndexes: closestPlayers.map((player) => player.absoluteIndex),
+      type: nearestDistance <= 15 ? "live-danger" : "live",
       message:
-        closestPlayers.length === 1
-          ? `${names} is ${smallestDistance} points away from 101.`
-          : `${names} are ${smallestDistance} points away from 101.`,
+        nearestPlayers.length === 1
+          ? `${nearestNames} is ${nearestDistance} points away from 101.`
+          : `${nearestNames} are ${nearestDistance} points away from 101.`,
     };
   }
 
   if (crossedTeams[0] && crossedTeams[1]) {
-    const crossedPlayers = crossedByTeam.flat();
-    const summary = joinWithAnd(
-      crossedPlayers.map((player) => `${player.name} (${player.score})`),
+    const tiedPlayers = crossedByTeam.flat();
+    const names = joinWithAnd(
+      tiedPlayers.map((entry) => `${entry.name} (${entry.score})`),
     );
 
     return {
       type: "tie",
-      message: `${summary} are at or above 101 on both teams. Decide the table tiebreak.`,
+      message: `${names} crossed 101 on both teams. Resolve the table tiebreak.`,
     };
   }
 
   const losingIndex = crossedTeams[0] ? 0 : 1;
   const winningIndex = losingIndex === 0 ? 1 : 0;
   const losingPlayers = crossedByTeam[losingIndex];
-  const losingSummary = joinWithAnd(
-    losingPlayers.map((player) => `${player.name} (${player.score})`),
+  const names = joinWithAnd(
+    losingPlayers.map((entry) => `${entry.name} (${entry.score})`),
   );
 
   return {
     type: "finished",
     losingIndex,
     winningIndex,
-    losingPlayerIndexes: losingPlayers.map((player) => player.absoluteIndex),
-    message: `${losingSummary} hit 101 or more, so ${getTeamLabel(
-      teams[losingIndex],
-      `Team ${losingIndex + 1}`,
-    )} loses. ${getTeamLabel(teams[winningIndex], `Team ${winningIndex + 1}`)} wins.`,
-  };
-}
-
-function sanitizeTeam(rawTeam, fallbackTeam) {
-  const rawPlayers = Array.isArray(rawTeam?.players) ? rawTeam.players : [];
-
-  return {
-    name:
-      typeof rawTeam?.name === "string" ? rawTeam.name : fallbackTeam.name,
-    players: [0, 1].map((playerIndex) =>
-      typeof rawPlayers[playerIndex] === "string"
-        ? rawPlayers[playerIndex]
-        : fallbackTeam.players[playerIndex],
-    ),
+    message: `${names} crossed 101, so ${getTeamLabel(losingIndex)} loses and ${getTeamLabel(
+      winningIndex,
+    )} wins.`,
   };
 }
 
@@ -251,34 +254,91 @@ function sanitizeRound(rawRound) {
   };
 }
 
-function sanitizeState(rawState) {
-  const fallback = createDefaultState();
-  const rawTeams = Array.isArray(rawState?.teams) ? rawState.teams : [];
-  const rawRounds = Array.isArray(rawState?.rounds) ? rawState.rounds : [];
+function extractLegacyPlayers(rawState) {
+  if (Array.isArray(rawState?.players)) {
+    return rawState.players;
+  }
+
+  if (!Array.isArray(rawState?.teams)) {
+    return [];
+  }
+
+  return rawState.teams.flatMap((team) =>
+    Array.isArray(team?.players) ? team.players : [],
+  );
+}
+
+function sanitizeDraft(rawDraft, fallbackDraft) {
+  const fallback = fallbackDraft ?? createDefaultDraft();
+  const hasStructuredDraft =
+    Array.isArray(rawDraft?.hearts) ||
+    Object.prototype.hasOwnProperty.call(rawDraft ?? {}, "tenDiamondOwner") ||
+    Object.prototype.hasOwnProperty.call(rawDraft ?? {}, "queenSpadeOwner");
+
+  if (hasStructuredDraft) {
+    return {
+      hearts: normalizeHearts(rawDraft?.hearts, fallback.hearts),
+      tenDiamondOwner: normalizeOwner(rawDraft?.tenDiamondOwner),
+      queenSpadeOwner: normalizeOwner(rawDraft?.queenSpadeOwner),
+    };
+  }
+
+  const fallbackHearts = normalizeHearts(fallback.hearts);
+  const oldDraftScores = normalizePlayerScores(rawDraft?.playerScores, fallbackHearts);
 
   return {
-    teams: [0, 1].map((teamIndex) =>
-      sanitizeTeam(rawTeams[teamIndex], fallback.teams[teamIndex]),
+    hearts: oldDraftScores.map((score, playerIndex) =>
+      clampNumber(score, 0, HEARTS_POOL_POINTS, fallbackHearts[playerIndex]),
     ),
-    // Legacy rounds only stored team totals, so they cannot be mapped back to
-    // individual players without inventing data.
-    rounds: rawRounds.map(sanitizeRound).filter(Boolean),
-    draft: {
-      playerScores: normalizePlayerScores(
-        rawState?.draft?.playerScores,
-        fallback.draft.playerScores,
-      ),
-    },
+    tenDiamondOwner: null,
+    queenSpadeOwner: null,
   };
 }
 
+function sanitizeState(rawState) {
+  const fallback = createDefaultState();
+  const rawPlayers = extractLegacyPlayers(rawState);
+  const rawRounds = Array.isArray(rawState?.rounds) ? rawState.rounds : [];
+
+  return {
+    players: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) => {
+      const candidate = rawPlayers[playerIndex];
+
+      if (typeof candidate !== "string") {
+        return fallback.players[playerIndex];
+      }
+
+      const cleaned = candidate.trim();
+      return cleaned || fallback.players[playerIndex];
+    }),
+    rounds: rawRounds.map(sanitizeRound).filter(Boolean),
+    draft: sanitizeDraft(rawState?.draft, fallback.draft),
+  };
+}
+
+let storageWritesDisabled = false;
+
+function getLocalStorage() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 function loadState() {
-  if (typeof localStorage === "undefined") {
+  const storage = getLocalStorage();
+
+  if (!storage) {
     return createDefaultState();
   }
 
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = storage.getItem(STORAGE_KEY);
 
     if (!saved) {
       return createDefaultState();
@@ -291,84 +351,88 @@ function loadState() {
 }
 
 function persistState(currentState) {
-  if (typeof localStorage === "undefined") {
+  if (storageWritesDisabled) {
     return;
   }
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+  const storage = getLocalStorage();
+
+  if (!storage) {
+    storageWritesDisabled = true;
+    return;
+  }
+
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+  } catch {
+    storageWritesDisabled = true;
+  }
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+  const entityMap = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+
+  return String(value).replace(/[&<>"']/g, (character) => entityMap[character]);
 }
 
 function formatRoundCount(count) {
   return `${count} round${count === 1 ? "" : "s"}`;
 }
 
+function formatRoundTime(isoStamp) {
+  if (typeof isoStamp !== "string") {
+    return "";
+  }
+
+  const parsed = new Date(isoStamp);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 let state = loadState();
 
 if (typeof document !== "undefined") {
   const refs = {
-    scoreboardGrid: document.querySelector("#scoreboard-grid"),
-    statusBanner: document.querySelector("#status-banner"),
-    roundForm: document.querySelector("#round-form"),
-    roundTotalValue: document.querySelector("#round-total-value"),
+    nameInputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
+      document.querySelector(`#player-name-${playerIndex}`),
+    ),
+    scoreNameLabels: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
+      document.querySelector(`#score-name-${playerIndex}`),
+    ),
+    heartsValueOutputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
+      document.querySelector(`#hearts-value-${playerIndex}`),
+    ),
+    playerPointsOutputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
+      document.querySelector(`#player-points-${playerIndex}`),
+    ),
+    roundTotalPill: document.querySelector("#round-total-pill"),
+    heartsRemaining: document.querySelector("#hearts-remaining"),
     roundValidation: document.querySelector("#round-validation"),
     addRoundButton: document.querySelector("#add-round-button"),
-    roundTeamNames: [
-      document.querySelector("#round-team-0-name"),
-      document.querySelector("#round-team-1-name"),
-    ],
-    roundTeamTotals: [
-      document.querySelector("#round-team-0-total"),
-      document.querySelector("#round-team-1-total"),
-    ],
-    roundPlayerLabels: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
-      document.querySelector(`#round-player-${playerIndex}-label`),
-    ),
-    roundPlayerInputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
-      document.querySelector(`#round-player-${playerIndex}`),
-    ),
-    teamNameInputs: [
-      document.querySelector("#team-0-name"),
-      document.querySelector("#team-1-name"),
-    ],
-    playerInputs: [
-      [
-        document.querySelector("#team-0-player-0"),
-        document.querySelector("#team-0-player-1"),
-      ],
-      [
-        document.querySelector("#team-1-player-0"),
-        document.querySelector("#team-1-player-1"),
-      ],
-    ],
-    historyList: document.querySelector("#history-list"),
-    historyEmpty: document.querySelector("#history-empty"),
-    roundCount: document.querySelector("#round-count"),
+    roundForm: document.querySelector("#round-form"),
     undoButton: document.querySelector("#undo-button"),
     resetButton: document.querySelector("#reset-button"),
+    statusBanner: document.querySelector("#status-banner"),
+    teamBoard: document.querySelector("#team-board"),
+    roundCount: document.querySelector("#round-count"),
+    historyEmpty: document.querySelector("#history-empty"),
+    historyList: document.querySelector("#history-list"),
+    heartSteppers: Array.from(document.querySelectorAll(".heart-stepper")),
+    cardButtons: Array.from(document.querySelectorAll(".card-chip")),
   };
-
-  function teamLabels() {
-    return state.teams.map((team, index) =>
-      getTeamLabel(team, index === 0 ? "Team A" : "Team B"),
-    );
-  }
-
-  function playerEntries() {
-    return getPlayerEntries(state.teams);
-  }
-
-  function totals() {
-    return getPlayerTotals(state.rounds);
-  }
 
   function updateInputValue(input, value) {
     if (input && input.value !== value) {
@@ -376,219 +440,185 @@ if (typeof document !== "undefined") {
     }
   }
 
-  function renderSetupInputs() {
-    state.teams.forEach((team, teamIndex) => {
-      updateInputValue(refs.teamNameInputs[teamIndex], team.name);
-      team.players.forEach((player, playerIndex) => {
-        updateInputValue(refs.playerInputs[teamIndex][playerIndex], player);
-      });
+  function renderNames() {
+    state.players.forEach((name, playerIndex) => {
+      updateInputValue(refs.nameInputs[playerIndex], name);
+
+      if (refs.scoreNameLabels[playerIndex]) {
+        refs.scoreNameLabels[playerIndex].textContent = displayName(
+          name,
+          playerIndex,
+        );
+      }
     });
   }
 
+  function renderRoundDraft() {
+    const preview = computeRound(state.draft);
+    const difference = TOTAL_ROUND_POINTS - preview.total;
+    const isComplete = isRoundComplete(preview);
+    const hearts = normalizeHearts(state.draft.hearts);
+    const heartsTotal = hearts.reduce((sum, value) => sum + value, 0);
+    const heartsRemaining = HEARTS_POOL_POINTS - heartsTotal;
+    const hasHeartsComplete = heartsTotal === HEARTS_POOL_POINTS;
+    const hasTenDiamond = state.draft.tenDiamondOwner !== null;
+    const hasQueenSpade = state.draft.queenSpadeOwner !== null;
+    const isReady = isComplete && hasHeartsComplete && hasTenDiamond && hasQueenSpade;
+
+    refs.roundTotalPill.textContent = `${preview.total} / ${TOTAL_ROUND_POINTS} points`;
+    refs.roundTotalPill.classList.toggle("is-invalid", !isReady);
+    refs.addRoundButton.disabled = !isReady;
+
+    if (refs.heartsRemaining) {
+      refs.heartsRemaining.textContent = `Hearts left: ${heartsRemaining}`;
+      refs.heartsRemaining.classList.toggle("is-warning", heartsRemaining !== 0);
+    }
+
+    hearts.forEach((heartCount, playerIndex) => {
+      if (refs.heartsValueOutputs[playerIndex]) {
+        refs.heartsValueOutputs[playerIndex].textContent = `${heartCount}♥`;
+      }
+    });
+
+    preview.playerScores.forEach((score, playerIndex) => {
+      if (refs.playerPointsOutputs[playerIndex]) {
+        refs.playerPointsOutputs[playerIndex].textContent = `${score} pts`;
+      }
+    });
+
+    refs.cardButtons.forEach((button) => {
+      const playerIndex = Number(button.dataset.player);
+      const cardType = button.dataset.card;
+      const isActive =
+        (cardType === "ten" && state.draft.tenDiamondOwner === playerIndex) ||
+        (cardType === "queen" && state.draft.queenSpadeOwner === playerIndex);
+
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+
+    refs.heartSteppers.forEach((button) => {
+      const playerIndex = Number(button.dataset.player);
+      const delta = Number(button.dataset.delta);
+      const canAddHeart = delta > 0 ? heartsRemaining > 0 : true;
+      const canRemoveHeart = delta < 0 ? hearts[playerIndex] > 0 : true;
+      const enabled = canAddHeart && canRemoveHeart;
+
+      button.disabled = !enabled;
+      button.setAttribute("aria-disabled", enabled ? "false" : "true");
+    });
+
+    refs.roundValidation.hidden = isReady;
+
+    if (!isReady) {
+      const notes = [];
+      const totalMessage = isComplete
+        ? "Point total is correct."
+        : difference > 0
+          ? `Add ${difference} more point${difference === 1 ? "" : "s"} to reach 36.`
+          : `Remove ${Math.abs(difference)} point${
+              Math.abs(difference) === 1 ? "" : "s"
+            } to get back to 36.`;
+
+      notes.push(totalMessage);
+
+      if (!hasHeartsComplete) {
+        notes.push(`${heartsRemaining} heart${heartsRemaining === 1 ? "" : "s"} left.`);
+      }
+
+      if (!hasTenDiamond) {
+        notes.push("Choose who took 10♦.");
+      }
+
+      if (!hasQueenSpade) {
+        notes.push("Choose who took Q♠.");
+      }
+
+      refs.roundValidation.textContent = notes.join(" ");
+    }
+  }
+
   function renderScoreboard() {
-    const labels = teamLabels();
-    const players = playerEntries();
-    const playerTotals = totals();
-    const teamTotals = getTeamScores(playerTotals);
-    const matchStatus = getMatchStatus(playerTotals, state.teams);
-    const lastRound = state.rounds[state.rounds.length - 1] ?? null;
+    const playerTotals = getPlayerTotals(state.rounds);
+    const matchStatus = getMatchStatus(playerTotals, state.players);
 
-    refs.scoreboardGrid.innerHTML = labels
-      .map((label, teamIndex) => {
-        const teamPlayers = players.filter(
-          (player) => player.teamIndex === teamIndex,
-        );
-        const highestPlayer = teamPlayers.reduce((bestPlayer, player) => {
-          if (!bestPlayer) {
-            return player;
-          }
-
-          return playerTotals[player.absoluteIndex] >
-            playerTotals[bestPlayer.absoluteIndex]
-            ? player
-            : bestPlayer;
-        }, null);
-        const highestScore = highestPlayer
-          ? playerTotals[highestPlayer.absoluteIndex]
-          : 0;
-        const distance = Math.max(LOSS_THRESHOLD - highestScore, 0);
-        const progress = Math.min((highestScore / LOSS_THRESHOLD) * 100, 100);
-        const isLosingTeam =
-          matchStatus.type === "finished" && matchStatus.losingIndex === teamIndex;
-        const playerRows = teamPlayers
-          .map((player) => {
-            const total = playerTotals[player.absoluteIndex];
-            const lastGain = lastRound?.playerScores?.[player.absoluteIndex] ?? null;
-            const isEliminated =
-              matchStatus.type === "finished" &&
-              matchStatus.losingPlayerIndexes?.includes(player.absoluteIndex);
-
-            return `
-              <div class="player-total-row ${isEliminated ? "is-eliminated" : ""}">
-                <div>
-                  <p class="player-total-name">${escapeHtml(player.name)}</p>
-                  <p class="player-total-meta">${
-                    total >= LOSS_THRESHOLD
-                      ? "Reached 101."
-                      : `${LOSS_THRESHOLD - total} left before 101.`
-                  }</p>
-                </div>
-                <div class="player-total-side">
-                  <span class="player-total-value">${total}</span>
-                  ${
-                    lastGain !== null
-                      ? `<span class="player-round-chip">+${lastGain}</span>`
-                      : ""
-                  }
-                </div>
-              </div>
-            `;
-          })
-          .join("");
-
-        return `
-          <article class="team-score-card ${isLosingTeam ? "is-losing" : ""}" data-tone="${
-            teamIndex === 0 ? "moss" : "accent"
-          }">
-            <div class="team-card-top">
-              <div>
-                <h3 class="team-name">${escapeHtml(label)}</h3>
-                <p class="team-players">${escapeHtml(
-                  getPlayerLine(state.teams[teamIndex]),
-                )}</p>
-              </div>
-              <div class="score-bubble">
-                <span class="score-number">${highestScore}</span>
-                <span class="score-caption">highest player</span>
-              </div>
-            </div>
-            <div class="meter" aria-hidden="true">
-              <div class="meter-fill" style="width: ${progress}%"></div>
-            </div>
-            <p class="meter-copy">${escapeHtml(
-              highestScore >= LOSS_THRESHOLD
-                ? `${highestPlayer?.name ?? label} pushed this team past the line.`
-                : `${distance} points left before a player on this team hits 101.`,
-            )}</p>
-            <div class="player-total-list">${playerRows}</div>
-            <p class="card-footnote">Combined score: ${teamTotals[teamIndex]}</p>
-            <p class="card-footnote">${
-              lastRound
-                ? escapeHtml(
-                    `Last round: ${teamPlayers
-                      .map(
-                        (player) =>
-                          `${player.name} +${lastRound.playerScores[player.absoluteIndex]}`,
-                      )
-                      .join(" | ")}`,
-                  )
-                : "No rounds logged yet"
-            }</p>
-          </article>
-        `;
-      })
-      .join("");
-
+    refs.roundCount.textContent = formatRoundCount(state.rounds.length);
     refs.statusBanner.className = "status-banner";
     refs.statusBanner.textContent = matchStatus.message;
 
     if (matchStatus.type !== "live") {
       refs.statusBanner.classList.add(`is-${matchStatus.type}`);
     }
-  }
 
-  function renderRoundDraft() {
-    const labels = teamLabels();
-    const preview = computeRound(state.draft);
-    const players = playerEntries();
-    const difference = TOTAL_ROUND_POINTS - preview.total;
-    const isComplete = isRoundComplete(preview);
+    refs.teamBoard.innerHTML = TEAM_PLAYER_INDEXES.map(
+      (playerIndexes, teamIndex) => {
+        const highestPlayerTotal = Math.max(
+          ...playerIndexes.map((playerIndex) => playerTotals[playerIndex]),
+        );
+        const progress = Math.min((highestPlayerTotal / LOSS_THRESHOLD) * 100, 100);
+        const isLosingTeam =
+          matchStatus.type === "finished" && matchStatus.losingIndex === teamIndex;
 
-    refs.roundTotalValue.textContent = `${preview.total} / ${TOTAL_ROUND_POINTS} points`;
-    refs.roundTotalValue.classList.toggle("is-invalid", !isComplete);
-    refs.addRoundButton.disabled = !isComplete;
-
-    refs.roundTeamNames.forEach((element, teamIndex) => {
-      element.textContent = labels[teamIndex];
-      refs.roundTeamTotals[teamIndex].textContent = `${preview.teamScores[teamIndex]} pts`;
-    });
-
-    players.forEach((player) => {
-      refs.roundPlayerLabels[player.absoluteIndex].textContent = player.name;
-      updateInputValue(
-        refs.roundPlayerInputs[player.absoluteIndex],
-        String(preview.playerScores[player.absoluteIndex]),
-      );
-    });
-
-    refs.roundValidation.hidden = isComplete;
-
-    if (!isComplete) {
-      refs.roundValidation.textContent =
-        difference > 0
-          ? `Add ${difference} more point${difference === 1 ? "" : "s"} to reach 36.`
-          : `Remove ${Math.abs(difference)} point${
-              Math.abs(difference) === 1 ? "" : "s"
-            } to get back to 36.`;
-    }
-  }
-
-  function renderHistory() {
-    const labels = teamLabels();
-    const players = playerEntries();
-
-    refs.roundCount.textContent = formatRoundCount(state.rounds.length);
-    refs.historyEmpty.hidden = state.rounds.length > 0;
-    refs.historyList.hidden = state.rounds.length === 0;
-
-    refs.historyList.innerHTML = [...state.rounds]
-      .reverse()
-      .map((round, reverseIndex) => {
-        const actualIndex = state.rounds.length - reverseIndex;
-        const teamBlocks = labels
-          .map((label, teamIndex) => {
-            const teamPlayers = players.filter(
-              (player) => player.teamIndex === teamIndex,
-            );
+        const playersMarkup = playerIndexes
+          .map((playerIndex) => {
+            const total = playerTotals[playerIndex];
+            const crossed = total >= LOSS_THRESHOLD;
 
             return `
-              <div class="history-team-block" data-tone="${
-                teamIndex === 0 ? "moss" : "accent"
-              }">
-                <p class="history-team-name">${escapeHtml(label)} • ${
-                  round.teamScores[teamIndex]
-                } pts</p>
-                ${teamPlayers
-                  .map(
-                    (player) => `
-                      <div class="history-player-row">
-                        <span class="history-player-name">${escapeHtml(
-                          player.name,
-                        )}</span>
-                        <span>${round.playerScores[player.absoluteIndex]} pts</span>
-                      </div>
-                    `,
-                  )
-                  .join("")}
+              <div class="board-player ${crossed ? "is-crossed" : ""}">
+                <span>${escapeHtml(displayName(state.players[playerIndex], playerIndex))}</span>
+                <span>${total}</span>
               </div>
             `;
           })
           .join("");
 
         return `
+          <article class="team-card ${isLosingTeam ? "is-losing" : ""}" data-team="${
+            teamIndex + 1
+          }">
+            <div class="team-top">
+              <h3 class="team-title">${getTeamLabel(teamIndex)}</h3>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill" style="width: ${progress}%"></div>
+            </div>
+            <div class="team-players">${playersMarkup}</div>
+            <p class="team-foot">Highest player on this team: ${highestPlayerTotal}</p>
+          </article>
+        `;
+      },
+    ).join("");
+  }
+
+  function renderHistory() {
+    refs.historyEmpty.hidden = state.rounds.length > 0;
+    refs.historyList.hidden = state.rounds.length === 0;
+
+    refs.historyList.innerHTML = [...state.rounds]
+      .reverse()
+      .map((round, reverseIndex) => {
+        const roundNumber = state.rounds.length - reverseIndex;
+        const timeCopy = formatRoundTime(round.createdAt);
+
+        const playersMarkup = round.playerScores
+          .map(
+            (score, playerIndex) => `
+              <div class="history-player">
+                <span>${escapeHtml(displayName(state.players[playerIndex], playerIndex))}</span>
+                <strong>${score}</strong>
+              </div>
+            `,
+          )
+          .join("");
+
+        return `
           <article class="history-item">
             <div class="history-top">
-              <div>
-                <p class="history-round">Round ${actualIndex}</p>
-                <p class="history-scoreline">${escapeHtml(
-                  labels[0],
-                )} ${round.teamScores[0]} - ${round.teamScores[1]} ${escapeHtml(
-                  labels[1],
-                )}</p>
-              </div>
-              <span class="history-badge">${round.total} pts</span>
+              <p class="history-round">Round ${roundNumber}</p>
+              <span class="history-meta">${timeCopy ? `at ${timeCopy}` : ""}</span>
             </div>
-            <div class="history-team-grid">${teamBlocks}</div>
+            <div class="history-players">${playersMarkup}</div>
           </article>
         `;
       })
@@ -596,7 +626,7 @@ if (typeof document !== "undefined") {
   }
 
   function render() {
-    renderSetupInputs();
+    renderNames();
     renderRoundDraft();
     renderScoreboard();
     renderHistory();
@@ -608,14 +638,41 @@ if (typeof document !== "undefined") {
     render();
   }
 
-  function updateDraftPlayer(playerIndex, value) {
+  function updatePlayerName(playerIndex, value) {
+    state = {
+      ...state,
+      players: state.players.map((name, index) =>
+        index === playerIndex ? String(value) : name,
+      ),
+    };
+
+    saveAndRender();
+  }
+
+  function updateDraftHearts(playerIndex, value) {
+    const fallbackHearts = normalizeHearts(state.draft.hearts);
+    const current = fallbackHearts[playerIndex] ?? 0;
+    const nextRequested = clampNumber(
+      value,
+      0,
+      HEARTS_POOL_POINTS,
+      current,
+    );
+    const heartsTotal = fallbackHearts.reduce((sum, hearts) => sum + hearts, 0);
+    const remaining = HEARTS_POOL_POINTS - heartsTotal;
+    const maxIncrease = Math.max(remaining, 0);
+    const limitedIncrease = Math.min(
+      Math.max(nextRequested - current, 0),
+      maxIncrease,
+    );
+    const nextHearts = nextRequested < current ? nextRequested : current + limitedIncrease;
+
     state = {
       ...state,
       draft: {
-        playerScores: state.draft.playerScores.map((score, currentIndex) =>
-          currentIndex === playerIndex
-            ? clampNumber(value, 0, TOTAL_ROUND_POINTS, score)
-            : score,
+        ...state.draft,
+        hearts: fallbackHearts.map((hearts, index) =>
+          index === playerIndex ? nextHearts : hearts,
         ),
       },
     };
@@ -623,46 +680,48 @@ if (typeof document !== "undefined") {
     saveAndRender();
   }
 
-  refs.teamNameInputs.forEach((input, teamIndex) => {
-    input.addEventListener("input", (event) => {
-      state = {
-        ...state,
-        teams: state.teams.map((team, index) =>
-          index === teamIndex ? { ...team, name: event.target.value } : team,
-        ),
-      };
+  function toggleDraftCard(cardType, playerIndex) {
+    const key = cardType === "ten" ? "tenDiamondOwner" : "queenSpadeOwner";
+    const currentOwner = normalizeOwner(state.draft[key]);
+    const nextOwner = currentOwner === playerIndex ? null : playerIndex;
 
-      saveAndRender();
+    state = {
+      ...state,
+      draft: {
+        ...state.draft,
+        [key]: nextOwner,
+      },
+    };
+
+    saveAndRender();
+  }
+
+  refs.nameInputs.forEach((input, playerIndex) => {
+    input.addEventListener("input", (event) => {
+      updatePlayerName(playerIndex, event.target.value);
     });
   });
 
-  refs.playerInputs.forEach((teamInputs, teamIndex) => {
-    teamInputs.forEach((input, playerIndex) => {
-      input.addEventListener("input", (event) => {
-        state = {
-          ...state,
-          teams: state.teams.map((team, index) => {
-            if (index !== teamIndex) {
-              return team;
-            }
+  refs.heartSteppers.forEach((button) => {
+    button.addEventListener("click", () => {
+      const playerIndex = Number(button.dataset.player);
+      const delta = Number(button.dataset.delta);
+      const currentHearts = normalizeHearts(state.draft.hearts)[playerIndex] ?? 0;
 
-            return {
-              ...team,
-              players: team.players.map((player, currentPlayerIndex) =>
-                currentPlayerIndex === playerIndex ? event.target.value : player,
-              ),
-            };
-          }),
-        };
-
-        saveAndRender();
-      });
+      updateDraftHearts(playerIndex, currentHearts + delta);
     });
   });
 
-  refs.roundPlayerInputs.forEach((input, playerIndex) => {
-    input.addEventListener("input", (event) => {
-      updateDraftPlayer(playerIndex, event.target.value);
+  refs.cardButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const playerIndex = Number(button.dataset.player);
+      const cardType = button.dataset.card;
+
+      if (cardType !== "ten" && cardType !== "queen") {
+        return;
+      }
+
+      toggleDraftCard(cardType, playerIndex);
     });
   });
 
@@ -670,8 +729,15 @@ if (typeof document !== "undefined") {
     event.preventDefault();
 
     const nextRound = computeRound(state.draft);
+    const hearts = normalizeHearts(state.draft.hearts);
+    const heartsTotal = hearts.reduce((sum, value) => sum + value, 0);
+    const isReady =
+      isRoundComplete(nextRound) &&
+      heartsTotal === HEARTS_POOL_POINTS &&
+      state.draft.tenDiamondOwner !== null &&
+      state.draft.queenSpadeOwner !== null;
 
-    if (!isRoundComplete(nextRound)) {
+    if (!isReady) {
       renderRoundDraft();
       return;
     }
@@ -679,9 +745,7 @@ if (typeof document !== "undefined") {
     state = {
       ...state,
       rounds: [...state.rounds, nextRound],
-      draft: {
-        playerScores: Array(PLAYER_COUNT).fill(0),
-      },
+      draft: createDefaultDraft(),
     };
 
     saveAndRender();
@@ -701,20 +765,16 @@ if (typeof document !== "undefined") {
   });
 
   refs.resetButton.addEventListener("click", () => {
-    const confirmed = window.confirm(
-      "Start a new match and clear all recorded rounds?",
-    );
+    const confirmed = window.confirm("Start a new match and clear all rounds?");
 
     if (!confirmed) {
       return;
     }
 
-    const fresh = createDefaultState();
-
     state = {
       ...state,
       rounds: [],
-      draft: fresh.draft,
+      draft: createDefaultDraft(),
     };
 
     saveAndRender();

@@ -6,240 +6,323 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>Leekha Scoreboard</title>
+    <title>Leekha Quick Score</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <div class="ambient ambient-one" aria-hidden="true"></div>
-      <div class="ambient ambient-two" aria-hidden="true"></div>
-
-      <header class="hero panel">
-        <div class="hero-copy">
-          <p class="eyebrow">Leekha score studio</p>
-          <h1>Track every hand, keep the score honest.</h1>
-          <p class="hero-text">
-            Two teams, four players, one losing line. In Leekha, if any single
-            player reaches <strong>101</strong>, that player&apos;s team loses.
-          </p>
-        </div>
-
-        <div class="hero-rules">
-          <span class="rule-chip">13 ♥ = 13</span>
-          <span class="rule-chip">10♦ = 10</span>
-          <span class="rule-chip">Q♠ = 13</span>
-          <span class="rule-chip">Round total = 36</span>
-        </div>
+    <div class="app-shell">
+      <header class="app-header panel">
+        <p class="eyebrow">Leekha scoreboard</p>
+        <h1>Fast Score Keeper</h1>
+        <p class="subhead">
+          Name players once, distribute <strong>13 hearts</strong> with
+          <strong>- / +</strong>, then assign <strong>10♦</strong> and
+          <strong>Q♠</strong>. Any player who reaches <strong>101</strong>
+          makes their team lose.
+        </p>
       </header>
 
-      <main class="dashboard panel">
-        <section class="workspace-section panel-scoreboard">
+      <main class="app-grid">
+        <section class="panel setup-panel" aria-labelledby="players-heading">
           <div class="panel-head">
-            <div>
-              <p class="section-kicker">Live board</p>
-              <h2>Match score</h2>
-            </div>
-            <span class="pill">Any player at 101 loses</span>
+            <h2 id="players-heading">Players</h2>
+            <span class="hint">Quick setup</span>
           </div>
 
-          <div id="scoreboard-grid" class="scoreboard-grid"></div>
-          <div id="status-banner" class="status-banner" aria-live="polite"></div>
+          <div class="player-name-grid">
+            <label class="field" for="player-name-0">
+              <span>Player 1 (Team 1)</span>
+              <input
+                id="player-name-0"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+                placeholder="Player 1"
+              />
+            </label>
 
-          <div class="toolbar">
-            <button id="undo-button" class="ghost-button" type="button">
-              Undo last round
-            </button>
-            <button id="reset-button" class="ghost-button" type="button">
-              Start new match
-            </button>
+            <label class="field" for="player-name-1">
+              <span>Player 2 (Team 1)</span>
+              <input
+                id="player-name-1"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+                placeholder="Player 2"
+              />
+            </label>
+
+            <label class="field" for="player-name-2">
+              <span>Player 3 (Team 2)</span>
+              <input
+                id="player-name-2"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+                placeholder="Player 3"
+              />
+            </label>
+
+            <label class="field" for="player-name-3">
+              <span>Player 4 (Team 2)</span>
+              <input
+                id="player-name-3"
+                class="text-input"
+                type="text"
+                autocapitalize="words"
+                placeholder="Player 4"
+              />
+            </label>
           </div>
         </section>
 
-        <section class="workspace-section panel-round">
+        <section class="panel round-panel" aria-labelledby="round-heading">
           <div class="panel-head">
-            <div>
-              <p class="section-kicker">Round builder</p>
-              <h2>Enter one round</h2>
-            </div>
-            <span id="round-total-value" class="pill">36 / 36 points</span>
+            <h2 id="round-heading">Add Round</h2>
+            <span id="round-total-pill" class="pill">0 / 36 points</span>
           </div>
 
           <form id="round-form" class="round-form">
-            <p class="round-helper-copy">
-              Enter the exact points each player took this hand. The four values
-              must add up to <strong>36</strong>.
-            </p>
-
-            <div class="round-entry-grid">
-              <article class="preview-card round-team-card" data-tone="moss">
-                <p id="round-team-0-name" class="preview-name">Team A</p>
-
-                <div class="round-player-list">
-                  <label class="round-player-input" for="round-player-0">
-                    <span id="round-player-0-label" class="round-player-label">
-                      Player 1
-                    </span>
-                    <input
-                      id="round-player-0"
-                      class="round-points-input"
-                      type="number"
-                      min="0"
-                      max="36"
-                      step="1"
-                      inputmode="numeric"
-                      value="0"
-                    />
-                  </label>
-
-                  <label class="round-player-input" for="round-player-1">
-                    <span id="round-player-1-label" class="round-player-label">
-                      Player 2
-                    </span>
-                    <input
-                      id="round-player-1"
-                      class="round-points-input"
-                      type="number"
-                      min="0"
-                      max="36"
-                      step="1"
-                      inputmode="numeric"
-                      value="0"
-                    />
-                  </label>
+            <div class="score-input-list">
+              <article class="score-row">
+                <span id="score-name-0" class="score-name">Player 1</span>
+                <div class="score-controls">
+                  <div class="score-tools">
+                    <div class="hearts-control">
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="0"
+                        data-delta="-1"
+                        aria-label="Decrease player 1 hearts"
+                      >
+                        -
+                      </button>
+                      <output id="hearts-value-0" class="hearts-value">0♥</output>
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="0"
+                        data-delta="1"
+                        aria-label="Increase player 1 hearts"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div class="card-buttons">
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="0"
+                        data-card="ten"
+                        aria-pressed="false"
+                      >
+                        10♦
+                      </button>
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="0"
+                        data-card="queen"
+                        aria-pressed="false"
+                      >
+                        Q♠
+                      </button>
+                    </div>
+                  </div>
+                  <output id="player-points-0" class="player-points">0 pts</output>
                 </div>
-
-                <p class="preview-breakdown">
-                  Team round total:
-                  <strong id="round-team-0-total">0 pts</strong>
-                </p>
               </article>
 
-              <article class="preview-card round-team-card" data-tone="accent">
-                <p id="round-team-1-name" class="preview-name">Team B</p>
-
-                <div class="round-player-list">
-                  <label class="round-player-input" for="round-player-2">
-                    <span id="round-player-2-label" class="round-player-label">
-                      Player 3
-                    </span>
-                    <input
-                      id="round-player-2"
-                      class="round-points-input"
-                      type="number"
-                      min="0"
-                      max="36"
-                      step="1"
-                      inputmode="numeric"
-                      value="0"
-                    />
-                  </label>
-
-                  <label class="round-player-input" for="round-player-3">
-                    <span id="round-player-3-label" class="round-player-label">
-                      Player 4
-                    </span>
-                    <input
-                      id="round-player-3"
-                      class="round-points-input"
-                      type="number"
-                      min="0"
-                      max="36"
-                      step="1"
-                      inputmode="numeric"
-                      value="0"
-                    />
-                  </label>
+              <article class="score-row">
+                <span id="score-name-1" class="score-name">Player 2</span>
+                <div class="score-controls">
+                  <div class="score-tools">
+                    <div class="hearts-control">
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="1"
+                        data-delta="-1"
+                        aria-label="Decrease player 2 hearts"
+                      >
+                        -
+                      </button>
+                      <output id="hearts-value-1" class="hearts-value">0♥</output>
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="1"
+                        data-delta="1"
+                        aria-label="Increase player 2 hearts"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div class="card-buttons">
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="1"
+                        data-card="ten"
+                        aria-pressed="false"
+                      >
+                        10♦
+                      </button>
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="1"
+                        data-card="queen"
+                        aria-pressed="false"
+                      >
+                        Q♠
+                      </button>
+                    </div>
+                  </div>
+                  <output id="player-points-1" class="player-points">0 pts</output>
                 </div>
+              </article>
 
-                <p class="preview-breakdown">
-                  Team round total:
-                  <strong id="round-team-1-total">0 pts</strong>
-                </p>
+              <article class="score-row">
+                <span id="score-name-2" class="score-name">Player 3</span>
+                <div class="score-controls">
+                  <div class="score-tools">
+                    <div class="hearts-control">
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="2"
+                        data-delta="-1"
+                        aria-label="Decrease player 3 hearts"
+                      >
+                        -
+                      </button>
+                      <output id="hearts-value-2" class="hearts-value">0♥</output>
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="2"
+                        data-delta="1"
+                        aria-label="Increase player 3 hearts"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div class="card-buttons">
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="2"
+                        data-card="ten"
+                        aria-pressed="false"
+                      >
+                        10♦
+                      </button>
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="2"
+                        data-card="queen"
+                        aria-pressed="false"
+                      >
+                        Q♠
+                      </button>
+                    </div>
+                  </div>
+                  <output id="player-points-2" class="player-points">0 pts</output>
+                </div>
+              </article>
+
+              <article class="score-row">
+                <span id="score-name-3" class="score-name">Player 4</span>
+                <div class="score-controls">
+                  <div class="score-tools">
+                    <div class="hearts-control">
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="3"
+                        data-delta="-1"
+                        aria-label="Decrease player 4 hearts"
+                      >
+                        -
+                      </button>
+                      <output id="hearts-value-3" class="hearts-value">0♥</output>
+                      <button
+                        class="heart-stepper"
+                        type="button"
+                        data-player="3"
+                        data-delta="1"
+                        aria-label="Increase player 4 hearts"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div class="card-buttons">
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="3"
+                        data-card="ten"
+                        aria-pressed="false"
+                      >
+                        10♦
+                      </button>
+                      <button
+                        class="card-chip"
+                        type="button"
+                        data-player="3"
+                        data-card="queen"
+                        aria-pressed="false"
+                      >
+                        Q♠
+                      </button>
+                    </div>
+                  </div>
+                  <output id="player-points-3" class="player-points">0 pts</output>
+                </div>
               </article>
             </div>
 
-            <p id="round-validation" class="round-validation" hidden></p>
+            <div class="round-summary">
+              <p id="hearts-remaining" class="summary-chip">Hearts left: 13</p>
+            </div>
 
-            <button id="add-round-button" class="primary-button" type="submit">
-              Add round
-            </button>
+            <p id="round-validation" class="validation-text" hidden></p>
+
+            <div class="round-actions">
+              <button id="add-round-button" class="btn btn-primary" type="submit">
+                Add round
+              </button>
+              <button id="undo-button" class="btn btn-secondary" type="button">
+                Undo last round
+              </button>
+              <button id="reset-button" class="btn btn-ghost" type="button">
+                New match
+              </button>
+            </div>
           </form>
         </section>
 
-        <section class="workspace-section panel-setup">
+        <section class="panel scoreboard-panel" aria-labelledby="board-heading">
           <div class="panel-head">
-            <div>
-              <p class="section-kicker">Team setup</p>
-              <h2>Players</h2>
-            </div>
+            <h2 id="board-heading">Live Score</h2>
+            <span id="round-count" class="hint">0 rounds</span>
           </div>
 
-          <div class="setup-grid">
-            <article class="team-setup-card">
-              <label class="field-label" for="team-0-name">Team 1 name</label>
-              <input
-                id="team-0-name"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-
-              <label class="field-label" for="team-0-player-0">Player 1</label>
-              <input
-                id="team-0-player-0"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-
-              <label class="field-label" for="team-0-player-1">Player 2</label>
-              <input
-                id="team-0-player-1"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-            </article>
-
-            <article class="team-setup-card">
-              <label class="field-label" for="team-1-name">Team 2 name</label>
-              <input
-                id="team-1-name"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-
-              <label class="field-label" for="team-1-player-0">Player 3</label>
-              <input
-                id="team-1-player-0"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-
-              <label class="field-label" for="team-1-player-1">Player 4</label>
-              <input
-                id="team-1-player-1"
-                class="text-input"
-                type="text"
-                autocapitalize="words"
-              />
-            </article>
-          </div>
+          <div id="status-banner" class="status-banner" aria-live="polite"></div>
+          <div id="team-board" class="team-board"></div>
         </section>
 
-        <section class="workspace-section panel-history">
+        <section class="panel history-panel" aria-labelledby="history-heading">
           <div class="panel-head">
-            <div>
-              <p class="section-kicker">Score log</p>
-              <h2>Round history</h2>
-            </div>
-            <span id="round-count" class="pill">0 rounds</span>
+            <h2 id="history-heading">History</h2>
+            <span class="hint">Latest first</span>
           </div>
 
           <div id="history-empty" class="empty-state">
-            No rounds yet. Build the first hand above.
+            No rounds yet. Add your first hand.
           </div>
           <div id="history-list" class="history-list"></div>
         </section>
