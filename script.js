@@ -417,12 +417,27 @@ function formatRoundTime(isoStamp) {
 let state = loadState();
 
 if (typeof document !== "undefined") {
+  function pickSelector(selectors) {
+    for (const selector of selectors) {
+      const match = document.querySelector(selector);
+
+      if (match) {
+        return match;
+      }
+    }
+
+    return null;
+  }
+
   const refs = {
-    nameInputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
-      document.querySelector(`#player-name-${playerIndex}`),
-    ),
+    nameInputs: [
+      pickSelector(["#player-name-0", "#team-0-player-0"]),
+      pickSelector(["#player-name-1", "#team-0-player-1"]),
+      pickSelector(["#player-name-2", "#team-1-player-0"]),
+      pickSelector(["#player-name-3", "#team-1-player-1"]),
+    ],
     scoreNameLabels: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
-      document.querySelector(`#score-name-${playerIndex}`),
+      pickSelector([`#score-name-${playerIndex}`, `#round-player-${playerIndex}-label`]),
     ),
     heartsValueOutputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
       document.querySelector(`#hearts-value-${playerIndex}`),
@@ -430,21 +445,55 @@ if (typeof document !== "undefined") {
     playerPointsOutputs: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) =>
       document.querySelector(`#player-points-${playerIndex}`),
     ),
-    roundTotalPill: document.querySelector("#round-total-pill"),
+    roundTotalPill: pickSelector(["#round-total-pill", "#round-total-value"]),
     heartsRemaining: document.querySelector("#hearts-remaining"),
     roundValidation: document.querySelector("#round-validation"),
-    addRoundButton: document.querySelector("#add-round-button"),
+    addRoundButton: pickSelector(["#add-round-button"]),
     roundForm: document.querySelector("#round-form"),
     undoButton: document.querySelector("#undo-button"),
     resetButton: document.querySelector("#reset-button"),
     statusBanner: document.querySelector("#status-banner"),
-    teamBoard: document.querySelector("#team-board"),
+    teamBoard: pickSelector(["#team-board", "#scoreboard-grid"]),
     roundCount: document.querySelector("#round-count"),
     historyEmpty: document.querySelector("#history-empty"),
     historyList: document.querySelector("#history-list"),
     heartSteppers: Array.from(document.querySelectorAll(".heart-stepper")),
     cardButtons: Array.from(document.querySelectorAll(".card-chip")),
   };
+
+  const hasRequiredMarkup = Boolean(
+    refs.roundTotalPill &&
+      refs.roundValidation &&
+      refs.addRoundButton &&
+      refs.roundForm &&
+      refs.undoButton &&
+      refs.resetButton &&
+      refs.statusBanner &&
+      refs.teamBoard &&
+      refs.roundCount &&
+      refs.historyEmpty &&
+      refs.historyList,
+  );
+
+  if (!hasRequiredMarkup) {
+    const refreshKey = "leekha-force-refresh-20260329-2";
+
+    try {
+      const alreadyRefreshed = window.sessionStorage.getItem(refreshKey) === "1";
+
+      if (!alreadyRefreshed) {
+        window.sessionStorage.setItem(refreshKey, "1");
+        const refreshedUrl = new URL(window.location.href);
+        refreshedUrl.searchParams.set("refresh", "20260329-2");
+        window.location.replace(refreshedUrl.toString());
+        return;
+      }
+    } catch {
+      // Continue without storage support.
+    }
+
+    return;
+  }
 
   function updateInputValue(input, value) {
     if (input && input.value !== value) {
@@ -709,6 +758,10 @@ if (typeof document !== "undefined") {
   }
 
   refs.nameInputs.forEach((input, playerIndex) => {
+    if (!input) {
+      return;
+    }
+
     input.addEventListener("input", (event) => {
       updatePlayerName(playerIndex, event.target.value);
     });
