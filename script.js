@@ -416,7 +416,7 @@ function formatRoundTime(isoStamp) {
 
 let state = loadState();
 
-if (typeof document !== "undefined") {
+function bootstrapApp() {
   function pickSelector(selectors) {
     for (const selector of selectors) {
       const match = document.querySelector(selector);
@@ -849,6 +849,10 @@ if (typeof document !== "undefined") {
   });
 
   render();
+}
+
+if (typeof document !== "undefined") {
+  bootstrapApp();
 }
 
 if (typeof module !== "undefined" && module.exports) {
