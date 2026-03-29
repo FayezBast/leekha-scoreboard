@@ -29,6 +29,10 @@ function createDefaultDraft() {
   };
 }
 
+function valueOr(value, fallback) {
+  return value === null || value === undefined ? fallback : value;
+}
+
 function clampNumber(value, min, max, fallback) {
   const numeric = Number(value);
 
@@ -47,7 +51,7 @@ function normalizePlayerScores(rawScores, fallbackScores = []) {
       source[playerIndex],
       0,
       TOTAL_ROUND_POINTS,
-      fallbackScores[playerIndex] ?? 0,
+      valueOr(fallbackScores[playerIndex], 0),
     ),
   );
 }
@@ -60,7 +64,7 @@ function normalizeHearts(rawHearts, fallbackHearts = []) {
       source[playerIndex],
       0,
       HEARTS_POOL_POINTS,
-      fallbackHearts[playerIndex] ?? 0,
+      valueOr(fallbackHearts[playerIndex], 0),
     ),
   );
 }
@@ -80,14 +84,14 @@ function getDraftPlayerScores(draft) {
     return normalizePlayerScores(draft);
   }
 
-  if (Array.isArray(draft?.playerScores)) {
+  if (draft && Array.isArray(draft.playerScores)) {
     return normalizePlayerScores(draft.playerScores);
   }
 
-  const hearts = normalizeHearts(draft?.hearts);
+  const hearts = normalizeHearts(draft && draft.hearts);
   const scores = [...hearts];
-  const tenDiamondOwner = normalizeOwner(draft?.tenDiamondOwner);
-  const queenSpadeOwner = normalizeOwner(draft?.queenSpadeOwner);
+  const tenDiamondOwner = normalizeOwner(draft && draft.tenDiamondOwner);
+  const queenSpadeOwner = normalizeOwner(draft && draft.queenSpadeOwner);
 
   if (tenDiamondOwner !== null) {
     scores[tenDiamondOwner] += 10;
@@ -103,7 +107,7 @@ function getDraftPlayerScores(draft) {
 function getTeamScores(playerScores) {
   return TEAM_PLAYER_INDEXES.map((playerIndexes) =>
     playerIndexes.reduce(
-      (teamScore, playerIndex) => teamScore + (playerScores[playerIndex] ?? 0),
+      (teamScore, playerIndex) => teamScore + valueOr(playerScores[playerIndex], 0),
       0,
     ),
   );
@@ -131,7 +135,12 @@ function getPlayerTotals(rounds) {
       totals.map(
         (runningTotal, playerIndex) =>
           runningTotal +
-          clampNumber(round?.playerScores?.[playerIndex], 0, TOTAL_ROUND_POINTS, 0),
+          clampNumber(
+            round && round.playerScores ? round.playerScores[playerIndex] : undefined,
+            0,
+            TOTAL_ROUND_POINTS,
+            0,
+          ),
       ),
     Array(PLAYER_COUNT).fill(0),
   );
@@ -142,13 +151,13 @@ function getTeamLabel(teamIndex) {
 }
 
 function displayName(name, playerIndex) {
-  const cleaned = String(name ?? "").trim();
+  const cleaned = String(valueOr(name, "")).trim();
   return cleaned || `Player ${playerIndex + 1}`;
 }
 
 function joinWithAnd(parts) {
   if (parts.length <= 1) {
-    return parts[0] ?? "";
+    return valueOr(parts[0], "");
   }
 
   if (parts.length === 2) {
@@ -237,7 +246,7 @@ function getMatchStatus(playerTotals, players) {
 }
 
 function sanitizeRound(rawRound) {
-  if (!Array.isArray(rawRound?.playerScores)) {
+  if (!rawRound || !Array.isArray(rawRound.playerScores)) {
     return null;
   }
 
@@ -248,43 +257,46 @@ function sanitizeRound(rawRound) {
   return {
     ...computed,
     createdAt:
-      typeof rawRound?.createdAt === "string"
+      typeof rawRound.createdAt === "string"
         ? rawRound.createdAt
         : computed.createdAt,
   };
 }
 
 function extractLegacyPlayers(rawState) {
-  if (Array.isArray(rawState?.players)) {
+  if (rawState && Array.isArray(rawState.players)) {
     return rawState.players;
   }
 
-  if (!Array.isArray(rawState?.teams)) {
+  if (!rawState || !Array.isArray(rawState.teams)) {
     return [];
   }
 
   return rawState.teams.flatMap((team) =>
-    Array.isArray(team?.players) ? team.players : [],
+    team && Array.isArray(team.players) ? team.players : [],
   );
 }
 
 function sanitizeDraft(rawDraft, fallbackDraft) {
-  const fallback = fallbackDraft ?? createDefaultDraft();
+  const fallback = valueOr(fallbackDraft, createDefaultDraft());
   const hasStructuredDraft =
-    Array.isArray(rawDraft?.hearts) ||
-    Object.prototype.hasOwnProperty.call(rawDraft ?? {}, "tenDiamondOwner") ||
-    Object.prototype.hasOwnProperty.call(rawDraft ?? {}, "queenSpadeOwner");
+    (rawDraft && Array.isArray(rawDraft.hearts)) ||
+    Object.prototype.hasOwnProperty.call(rawDraft || {}, "tenDiamondOwner") ||
+    Object.prototype.hasOwnProperty.call(rawDraft || {}, "queenSpadeOwner");
 
   if (hasStructuredDraft) {
     return {
-      hearts: normalizeHearts(rawDraft?.hearts, fallback.hearts),
-      tenDiamondOwner: normalizeOwner(rawDraft?.tenDiamondOwner),
-      queenSpadeOwner: normalizeOwner(rawDraft?.queenSpadeOwner),
+      hearts: normalizeHearts(rawDraft && rawDraft.hearts, fallback.hearts),
+      tenDiamondOwner: normalizeOwner(rawDraft && rawDraft.tenDiamondOwner),
+      queenSpadeOwner: normalizeOwner(rawDraft && rawDraft.queenSpadeOwner),
     };
   }
 
   const fallbackHearts = normalizeHearts(fallback.hearts);
-  const oldDraftScores = normalizePlayerScores(rawDraft?.playerScores, fallbackHearts);
+  const oldDraftScores = normalizePlayerScores(
+    rawDraft && rawDraft.playerScores,
+    fallbackHearts,
+  );
 
   return {
     hearts: oldDraftScores.map((score, playerIndex) =>
@@ -298,7 +310,7 @@ function sanitizeDraft(rawDraft, fallbackDraft) {
 function sanitizeState(rawState) {
   const fallback = createDefaultState();
   const rawPlayers = extractLegacyPlayers(rawState);
-  const rawRounds = Array.isArray(rawState?.rounds) ? rawState.rounds : [];
+  const rawRounds = rawState && Array.isArray(rawState.rounds) ? rawState.rounds : [];
 
   return {
     players: Array.from({ length: PLAYER_COUNT }, (_, playerIndex) => {
@@ -312,7 +324,7 @@ function sanitizeState(rawState) {
       return cleaned || fallback.players[playerIndex];
     }),
     rounds: rawRounds.map(sanitizeRound).filter(Boolean),
-    draft: sanitizeDraft(rawState?.draft, fallback.draft),
+    draft: sanitizeDraft(rawState && rawState.draft, fallback.draft),
   };
 }
 
@@ -651,7 +663,7 @@ if (typeof document !== "undefined") {
 
   function updateDraftHearts(playerIndex, value) {
     const fallbackHearts = normalizeHearts(state.draft.hearts);
-    const current = fallbackHearts[playerIndex] ?? 0;
+    const current = valueOr(fallbackHearts[playerIndex], 0);
     const nextRequested = clampNumber(
       value,
       0,
@@ -706,7 +718,10 @@ if (typeof document !== "undefined") {
     button.addEventListener("click", () => {
       const playerIndex = Number(button.dataset.player);
       const delta = Number(button.dataset.delta);
-      const currentHearts = normalizeHearts(state.draft.hearts)[playerIndex] ?? 0;
+      const currentHearts = valueOr(
+        normalizeHearts(state.draft.hearts)[playerIndex],
+        0,
+      );
 
       updateDraftHearts(playerIndex, currentHearts + delta);
     });
